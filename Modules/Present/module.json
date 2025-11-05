@@ -1,0 +1,11 @@
+{
+    "name": "Present",
+    "alias": "present",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Present\\Providers\\PresentServiceProvider"
+    ],
+    "files": []
+}

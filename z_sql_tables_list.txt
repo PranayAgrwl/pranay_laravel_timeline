@@ -1,0 +1,6 @@
+0. db_laravel_pranay_timeline
+databse name
+
+(we will be using the laravel inbuilt users and sessions table, that were created the first time we ran migrate)
+
+1. 

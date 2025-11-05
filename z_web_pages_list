@@ -1,0 +1,9 @@
+navbar
+
+1. make navbar for my laravel website
+2. bootstrap 5 (for css js)
+3. dark mode (make it minimalistic, asthetic, dont use colors)
+4. phone display suitable (hamburg menu)
+5. breadcrumbs (home/products/about-us/other-links)
+6. hover dropdown on other links (make some work around for phone as well)
+7. log out button at far right (enabled/not-hidden at all time as only who will be logged in will be able to see this navbar)
