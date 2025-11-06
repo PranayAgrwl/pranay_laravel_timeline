@@ -10,7 +10,7 @@
 
 <nav class="navbar navbar-expand-lg bg-dark sticky-top" data-bs-theme="dark">
     <div class="container-fluid">
-        <a class="navbar-brand text-light fw-bold" href="/">My Laravel App</a>
+        <a class="navbar-brand text-light fw-bold" href="/">Timeline</a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbarCollapse">
             <span class="navbar-toggler-icon"></span>

@@ -1,7 +1,7 @@
-<div class="container mt-4">
-    <div class="p-4">
+<div class="container-fluid p-0">
+    <div class="p-3 p-sm-4 p-md-5">
 
-        <h2 class="card-title h3 mb-4">Daily Habit Log</h2>
+        <h2 class="card-title h3 mb-4 text-center text-md-start">Daily Habit Log</h2>
 
         {{-- Notification Message --}}
         @if (session()->has('success'))
@@ -57,7 +57,7 @@
                                 </td>
                                 
                                 {{-- Outcome Column (Yes/No) --}}
-                                <td>
+                                <td style="min-width: 100px;">
                                     <select wire:model.live="logData.{{ $habitId }}.outcome" 
                                             class="form-select form-select-sm">
                                         <option value="no">No</option>
@@ -67,7 +67,7 @@
                                 </td>
                                 
                                 {{-- Value Column (based on Unit) --}}
-                                <td>
+                                <td style="min-width: 100px;">
                                     <input type="number" step="any"
                                            wire:model.live="logData.{{ $habitId }}.value" 
                                            class="form-control form-control-sm" 
@@ -83,13 +83,37 @@
                                     @error("logData.$habitId.log_time") <small class="text-danger">{{ $message }}</small> @enderror
                                 </td>
                                 
-                                {{-- Notes Column --}}
-                                <td>
-                                    <textarea wire:model.live="logData.{{ $habitId }}.notes" 
-                                              rows="1" 
-                                              class="form-control form-control-sm" 
-                                              placeholder="Notes..."></textarea>
-                                    @error("logData.$habitId.notes") <small class="text-danger">{{ $message }}</small> @enderror
+                                {{-- Notes Column Old
+                                <!-- <td style="min-width: 320px;">
+                                    <input type="text" 
+                                            wire:model.live="logData.{{ $habitId }}.notes" 
+                                            class="form-control form-control-sm" 
+                                            placeholder="Notes...">
+                                    @error("logData.$habitId.notes") <small class="text-danger d-block mt-1">{{ $message }}</small> @enderror
+                                </td> --> --}}
+                                {{-- New Notes Column with Auto-Growing Textarea  --}}
+                                <td style="min-width: 150px;"> 
+                                    <textarea 
+                                        x-data="{ 
+                                            resize: () => { 
+                                                $el.style.height = 'auto'; // Reset height temporarily
+                                                $el.style.height = $el.scrollHeight + 'px'; // Set to new scroll height
+                                            } 
+                                        }"
+                                        x-init="resize()" {{-- 1. Initial size on load --}}
+                                        @input="resize()" {{-- 2. Resize as the user types --}}
+                                        
+                                        {{-- 3. Livewire Hook: Resize after Livewire updates the element --}}
+                                        wire:model.live="logData.{{ $habitId }}.notes" 
+                                        wire:ignore.self
+                                        x-on:livewire:updated="resize()" 
+
+                                        rows="1" 
+                                        class="form-control form-control-sm" 
+                                        placeholder="Notes..."
+                                        style="resize: none; overflow-y: hidden;"
+                                    ></textarea>
+                                    @error("logData.$habitId.notes") <small class="text-danger d-block mt-1">{{ $message }}</small> @enderror
                                 </td>
                             </tr>
                         @empty
