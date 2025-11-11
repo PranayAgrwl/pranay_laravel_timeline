@@ -59,7 +59,10 @@ class Index extends Component
         $logs = PresentLogs::with('habit.unit')
             ->where('created_by', Auth::id())
             ->whereBetween('log_date', [$startOfMonth, $endOfMonth])
-            ->get();
+            ->get()
+            ->sortBy(fn($log) =>
+            $log->habit->sort_order)
+            ->values();
 
         $this->reportData = [];
 
