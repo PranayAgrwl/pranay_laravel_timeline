@@ -25,6 +25,9 @@
                     <a class="nav-link text-white" href="{{ route('present.index') }}">Present</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link text-white" href="{{ route('future.index') }}">Future</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link text-white" href="{{ route('test') }}">Project</a>
                 </li>
 

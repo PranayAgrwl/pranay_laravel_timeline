@@ -123,4 +123,24 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Autoloaded Service Providers
+    |--------------------------------------------------------------------------
+    */
+    // 'providers' => Illuminate\Foundation\Providers\ServiceProvider::defaultProviders()->merge([
+    //     // ...
+    //     /*
+    //     * Package Service Providers...
+    //     */
+    //     Nwidart\Modules\LaravelModulesServiceProvider::class, // <-- THIS IS CRITICAL
+
+    //     /*
+    //     * Application Service Providers...
+    //     */
+    //     App\Providers\AppServiceProvider::class,
+    //     App\Providers\AuthServiceProvider::class,
+    //     // ... other application providers
+    // ])->toArray(),
+
 ];

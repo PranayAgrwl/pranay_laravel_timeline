@@ -1,0 +1,11 @@
+{
+    "name": "Future",
+    "alias": "future",
+    "description": "",
+    "keywords": [],
+    "priority": 0,
+    "providers": [
+        "Modules\\Future\\Providers\\FutureServiceProvider"
+    ],
+    "files": []
+}
