@@ -48,50 +48,63 @@
                                     <small class="text-muted">{{ $data['unit'] }}</small>
                                 </th>
 
-                                {{-- Daily Log Cells --}}
+                                {{--
+                                    Daily Log Cells
+                                    Three persisted outcomes, each with its own colour token:
+                                        yes          -> green   (shows numeric value if any, else 'Y')
+                                        no           -> red     ('N')
+                                        not_possible -> grey    ('NP')
+                                    Absent log row -> blank '-'.
+                                --}}
                                 @foreach ($daysArray as $day)
                                     @php
-                                        // 1. Construct the full date string for lookup (e.g., '2025-11-04')
                                         $paddedDay = str_pad($day, 2, '0', STR_PAD_LEFT);
-                                        $fullDate = $this->month . '-' . $paddedDay;
-                                        
-                                        // 2. Check if a log exists for this habit on this day
-                                        $log = $data['dates'][$fullDate] ?? null;
-                                        
-                                        // 3. Determine the cell content and style
-                                        $cellClass = 'bg-light'; // Default blank
-                                        $cellStyle = '';
-                                        $cellContent = '-'; // Default content
+                                        $fullDate  = $this->month . '-' . $paddedDay;
+                                        $log       = $data['dates'][$fullDate] ?? null;
+
+                                        $cellClass   = 'bg-light';
+                                        $cellStyle   = '';
+                                        $cellContent = '-';
                                         $tooltipText = '';
 
                                         if ($log) {
-                                            if ($log['positive']) {
-                                                // Positive Outcome (YES)
-                                                $cellClass = '';
-                                                $cellStyle = 'background-color: #e0f7e0; color: #1e7040;';
-                                                $cellContent = !is_null($log['value']) ? $log['value'] : 'Y';
-                                            } else {
-                                                // Negative Outcome (NO)
-                                                $cellClass = '';
-                                                $cellStyle = 'background-color: #fcebeb; color: #cc0000;';
-                                                $cellContent = 'N'; 
+                                            switch ($log['outcome']) {
+                                                case 'yes':
+                                                    $cellStyle   = 'background-color: #e0f7e0; color: #1e7040;';
+                                                    $cellContent = !is_null($log['value']) ? $log['value'] : 'Y';
+                                                    break;
+                                                case 'no':
+                                                    $cellStyle   = 'background-color: #fcebeb; color: #cc0000;';
+                                                    $cellContent = 'N';
+                                                    break;
+                                                case 'not_possible':
+                                                    // Neutral grey so it reads as "skipped for a reason"
+                                                    // rather than "failed" - clearly distinct from the red 'no'.
+                                                    $cellStyle   = 'background-color: #e9ecef; color: #495057;';
+                                                    $cellContent = 'NP';
+                                                    break;
                                             }
 
-                                            $tooltipText = $log['formatted_datetime'];
+                                            $cellClass = ''; // any persisted outcome overrides the default bg
+
+                                            // Build tooltip from whichever pieces actually exist.
+                                            $parts = [];
+                                            if (!empty($log['formatted_datetime'])) {
+                                                $parts[] = $log['formatted_datetime'];
+                                            }
                                             if (!empty($log['notes'])) {
-                                                // Add a separator and the notes if notes exist
-                                                $tooltipText .= ' | Notes: ' . $log['notes'];
+                                                $parts[] = 'Notes: ' . $log['notes'];
                                             }
-
+                                            $tooltipText = implode(' | ', $parts);
                                         }
                                     @endphp
 
                                     <td class="{{ $cellClass }}" style="{{ $cellStyle }}">
                                         {{ $cellContent }}
-                                        @if ($log && (!empty($log['notes']) || !empty($log['formatted_datetime'])))
-                                            <i class="bi bi-info-circle-fill small" 
-                                                data-bs-toggle="tooltip" 
-                                                data-bs-placement="top" 
+                                        @if ($log && $tooltipText !== '')
+                                            <i class="bi bi-info-circle-fill small"
+                                                data-bs-toggle="tooltip"
+                                                data-bs-placement="top"
                                                 title="{{ $tooltipText }}"></i>
                                         @endif
                                     </td>

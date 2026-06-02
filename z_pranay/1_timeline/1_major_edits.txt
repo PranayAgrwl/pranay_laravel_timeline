@@ -1,0 +1,13 @@
+current project edit
+-
+(this web app is to be used mostly by phone so keep that in mind)
+1. [DONE] make instead of only 2 outcomes yes/no - make it a radio button with 4 options
+	not done (by default - not saved)(not an option in mysql - thus shouldnt be saved; just a placeholder)
+	yes
+	no
+	not possible (add a new option in the mysql)
+(thus remove the fancy logic of save if null - use this simple - by default - not done - save by marking yes / no / not possible)
+
+2. [DONE] draw a line between completed tasks and pending tasks for the day
+pending tasks showing at top in the same sort habit order - and then a line - and then the completed tasks showing in the same sort habit order
+

@@ -1,142 +1,151 @@
+{{--
+    Module: Present  |  View: livewire/logs/index.blade.php
+
+    PURPOSE
+    -------
+    Daily habit logger. Designed phone-first - everything is reachable with a
+    thumb in portrait orientation.
+
+    LAYOUT
+    ------
+        [ Date navigator ]
+        [ Pending section   <- habits with no log row for the day ]
+        [ Divider                                                 ]
+        [ Completed section <- habits with a saved log row        ]
+        [ Save button (sticky on mobile) ]
+
+    OUTCOME PILLS
+    -------------
+    Each habit row offers a 4-button segmented radio:
+        Not Done | Yes | No | Not Possible
+    The "Not Done" choice is a UI placeholder; on save, choosing it for a
+    habit that already had a log row soft-deletes that row (clean undo).
+
+    KEYING
+    ------
+    The Livewire component passes ordered ID lists ($pendingHabitIds,
+    $completedHabitIds) plus a single $logData keyed by habit_id. We iterate
+    the lists and look up row data on the fly - this keeps the two sections
+    in sync with the same source of truth.
+--}}
+
 <div class="container-fluid p-0">
-    <div class="p-3 p-sm-4 p-md-5">
+    <div class="p-2 p-sm-3 p-md-4">
 
-        <h2 class="card-title h3 mb-4 text-center text-md-start">Daily Habit Log</h2>
+        <h2 class="h4 mb-3 text-center text-md-start">Daily Habit Log</h2>
 
-        {{-- Notification Message --}}
+        {{-- Flash messages from saveLogs() --}}
         @if (session()->has('success'))
-            <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <div class="alert alert-success alert-dismissible fade show py-2" role="alert">
                 {{ session('success') }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
-        
-        {{-- 1. Date Navigation Section --}}
-        <div class="d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded border">
-            
-            <button class="btn btn-secondary me-2" wire:click="previousDay" wire:loading.attr="disabled">
+
+        {{-- 1. Date navigator (sticky-ish, easy to thumb) --}}
+        <div class="d-flex justify-content-between align-items-center mb-3 p-2 bg-light rounded border">
+            <button type="button" class="btn btn-outline-secondary"
+                    wire:click="previousDay" wire:loading.attr="disabled">
                 <i class="bi bi-caret-left-fill"></i>
             </button>
 
-            <div class="text-center">
-                <h4 class="h5 mb-0">
+            <div class="text-center px-2 flex-grow-1">
+                <div class="fw-semibold small">
                     {{ $currentDateFormatted }}
                     @if ($isToday)
-                        <span class="badge text-bg-warning text-white ms-2">Today</span>
+                        <span class="badge text-bg-warning ms-1">Today</span>
                     @endif
-                </h4>
+                </div>
             </div>
 
-            {{-- Disable "Next Day" button if viewing today or the future --}}
-            <button class="btn btn-secondary ms-2" wire:click="nextDay" wire:loading.attr="disabled"
+            {{-- Next-day is meaningless when already on today; disable to prevent confusion. --}}
+            <button type="button" class="btn btn-outline-secondary"
+                    wire:click="nextDay" wire:loading.attr="disabled"
                     @if ($isToday) disabled @endif>
                 <i class="bi bi-caret-right-fill"></i>
             </button>
         </div>
 
-        {{-- 2. Log Submission Form (The entire table is the form) --}}
+        {{-- The entire two-section table is a single form so one Save persists everything. --}}
         <form wire:submit.prevent="saveLogs">
-            <div class="table-responsive">
-                <table class="table table-bordered table-striped align-middle">
-                    <thead class="table-dark sticky-top">
-                        <tr>
-                            <th style="width: 25%;">Habit</th>
-                            <th style="width: 10%;">Outcome</th>
-                            <th style="width: 15%;">Value</th>
-                            <th style="width: 25%;">Date-Time</th>
-                            <th style="width: 25%;">Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($habitsData as $habitId => $data)
-                            <tr>
-                                {{-- Habit Name & Unit --}}
-                                <td>
-                                    <strong>{{ $data['habit_name'] }}</strong><br>
-                                    <span class="badge text-bg-info text-white">{{ $data['unit_name'] }}</span>
-                                </td>
-                                
-                                {{-- Outcome Column (Yes/No) --}}
-                                <td style="min-width: 100px;">
-                                    <select wire:model.live="logData.{{ $habitId }}.outcome" 
-                                            class="form-select form-select-sm">
-                                        <option value="no">No</option>
-                                        <option value="yes">Yes</option>
-                                    </select>
-                                    @error("logData.$habitId.outcome") <small class="text-danger">{{ $message }}</small> @enderror
-                                </td>
-                                
-                                {{-- Value Column (based on Unit) --}}
-                                <td style="min-width: 100px;">
-                                    <input type="number" step="any"
-                                           wire:model.live="logData.{{ $habitId }}.value" 
-                                           class="form-control form-control-sm" 
-                                           placeholder="Amount">
-                                    @error("logData.$habitId.value") <small class="text-danger">{{ $message }}</small> @enderror
-                                </td>
-                                
-                                {{-- Date-Time Column (Technical Timestamp) --}}
-                                <td>
-                                    <input type="datetime-local" 
-                                           wire:model.live="logData.{{ $habitId }}.log_time" 
-                                           class="form-control form-control-sm">
-                                    @error("logData.$habitId.log_time") <small class="text-danger">{{ $message }}</small> @enderror
-                                </td>
-                                
-                                {{-- Notes Column Old
-                                <!-- <td style="min-width: 320px;">
-                                    <input type="text" 
-                                            wire:model.live="logData.{{ $habitId }}.notes" 
-                                            class="form-control form-control-sm" 
-                                            placeholder="Notes...">
-                                    @error("logData.$habitId.notes") <small class="text-danger d-block mt-1">{{ $message }}</small> @enderror
-                                </td> --> --}}
-                                {{-- New Notes Column with Auto-Growing Textarea  --}}
-                                <td style="min-width: 150px;"> 
-                                    <textarea 
-                                        x-data="{ 
-                                            resize: () => { 
-                                                $el.style.height = 'auto'; // Reset height temporarily
-                                                $el.style.height = $el.scrollHeight + 'px'; // Set to new scroll height
-                                            } 
-                                        }"
-                                        x-init="resize()" {{-- 1. Initial size on load --}}
-                                        @input="resize()" {{-- 2. Resize as the user types --}}
-                                        
-                                        {{-- 3. Livewire Hook: Resize after Livewire updates the element --}}
-                                        wire:model.live="logData.{{ $habitId }}.notes" 
-                                        wire:ignore.self
-                                        x-on:livewire:updated="resize()" 
 
-                                        rows="1" 
-                                        class="form-control form-control-sm" 
-                                        placeholder="Notes..."
-                                        style="resize: none; overflow-y: hidden;"
-                                    ></textarea>
-                                    @error("logData.$habitId.notes") <small class="text-danger d-block mt-1">{{ $message }}</small> @enderror
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="5" class="text-center p-4">No active habits found.</td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+            {{-- =========================================================
+                 SECTION A : PENDING
+                 Habits with no saved log for this date yet.
+                 ========================================================= --}}
+            <div class="mb-2 d-flex justify-content-between align-items-center">
+                <h3 class="h6 mb-0 text-uppercase text-muted">
+                    <i class="bi bi-hourglass-split me-1"></i>
+                    Pending
+                    <span class="badge text-bg-secondary ms-1">{{ count($pendingHabitIds) }}</span>
+                </h3>
             </div>
-            
-            {{-- Submit Button --}}
-            <div class="mt-4 text-center">
-                <button type="submit" class="btn btn-warning btn-lg fw-bold text-white" 
-                    wire:loading.attr="disabled" wire:target="saveLogs, log_date">
-                    <span wire:loading.remove wire:target="saveLogs">Save Logs for Today</span>
-                    <span wire:loading wire:target="saveLogs">Saving Logs...</span>
-                </button>
-                <div wire:loading.block wire:target="previousDay, nextDay, today" class="text-center mt-3">
-                    <span class="text-info">Loading date...</span>
+
+            @if (count($pendingHabitIds) === 0)
+                <div class="alert alert-light border text-center py-2 mb-3">
+                    Nothing pending - every habit has been logged for this day.
                 </div>
+            @else
+                <div class="d-flex flex-column gap-2 mb-3">
+                    @foreach ($pendingHabitIds as $habitId)
+                        @include('present::livewire.logs._row', [
+                            'habitId' => $habitId,
+                            'data'    => $logData[$habitId],
+                            'state'   => 'pending',
+                        ])
+                    @endforeach
+                </div>
+            @endif
+
+            {{-- Visual divider between the two groups --}}
+            <hr class="my-4 border-2">
+
+            {{-- =========================================================
+                 SECTION B : COMPLETED
+                 Habits with a saved log (yes / no / not_possible).
+                 ========================================================= --}}
+            <div class="mb-2 d-flex justify-content-between align-items-center">
+                <h3 class="h6 mb-0 text-uppercase text-muted">
+                    <i class="bi bi-check2-square me-1"></i>
+                    Completed
+                    <span class="badge text-bg-secondary ms-1">{{ count($completedHabitIds) }}</span>
+                </h3>
+            </div>
+
+            @if (count($completedHabitIds) === 0)
+                <div class="alert alert-light border text-center py-2 mb-3">
+                    Nothing logged yet for this day.
+                </div>
+            @else
+                <div class="d-flex flex-column gap-2 mb-4">
+                    @foreach ($completedHabitIds as $habitId)
+                        @include('present::livewire.logs._row', [
+                            'habitId' => $habitId,
+                            'data'    => $logData[$habitId],
+                            'state'   => 'completed',
+                        ])
+                    @endforeach
+                </div>
+            @endif
+
+            {{-- =========================================================
+                 SAVE
+                 Single submit persists all changes in both sections.
+                 ========================================================= --}}
+            <div class="d-grid">
+                <button type="submit" class="btn btn-warning btn-lg fw-bold text-white"
+                        wire:loading.attr="disabled" wire:target="saveLogs">
+                    <span wire:loading.remove wire:target="saveLogs">
+                        <i class="bi bi-save2 me-1"></i> Save Day
+                    </span>
+                    <span wire:loading wire:target="saveLogs">Saving...</span>
+                </button>
+            </div>
+
+            {{-- Lightweight visual cue while paging between days --}}
+            <div wire:loading.block wire:target="previousDay, nextDay" class="text-center mt-3 small text-info">
+                Loading date...
             </div>
         </form>
-
     </div>
 </div>

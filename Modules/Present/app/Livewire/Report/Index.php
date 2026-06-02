@@ -66,28 +66,32 @@ class Index extends Component
 
         $this->reportData = [];
 
-        // 2. Aggregate logs into the reportData structure
+        // Aggregate logs into the reportData structure used by the grid view.
+        // We pre-compute the bits the view needs (positive flag, formatted
+        // datetime) so the Blade stays declarative.
         foreach ($logs as $log) {
             $habitName = $log->habit->habit_name;
-            $logDate = $log->log_date; 
-            
-            // Initialize habit structure if not exists
+            $logDate   = $log->log_date;
+
             if (!isset($this->reportData[$habitName])) {
                 $this->reportData[$habitName] = [
-                    'unit' => $log->habit->unit->name ?? 'N/A',
+                    'unit'  => $log->habit->unit->name ?? 'N/A',
                     'dates' => [],
                 ];
             }
-            
-            // Store log data for the specific date
+
             $this->reportData[$habitName]['dates'][$logDate] = [
-                'outcome' => $log->outcome,
-                'value' => $log->value,
+                'outcome'  => $log->outcome,           // 'yes' | 'no' | 'not_possible'
+                'value'    => $log->value,
                 'log_time' => $log->log_time,
-                'notes' => $log->notes,
-                // Assign a boolean for easy styling/display
-                'positive' => $log->outcome === 'yes', 
-                'formatted_datetime' => Carbon::parse($log->log_time)->format('M d, Y \a\t g:i A'),
+                'notes'    => $log->notes,
+
+                // Guard against null log_time: previously Carbon::parse(null) silently
+                // returned "now", which produced misleading tooltips for rows saved
+                // without an explicit time.
+                'formatted_datetime' => $log->log_time
+                    ? Carbon::parse($log->log_time)->format('M d, Y \a\t g:i A')
+                    : null,
             ];
         }
     }
