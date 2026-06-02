@@ -1,0 +1,46 @@
+Notes for Daily Git Usage
+
+0. Change Directory
+cd C:\xampp\htdocs\deetex
+
+1. Pull Latest Changes from GitHub
+git pull origin main
+
+2. Check Current Status of Your Project
+git status
+
+git fetch origin
+
+git log HEAD..origin/main --oneline
+git diff --name-only HEAD origin/main
+
+
+3.0 View Commit History (in Long Form)
+git log
+git log --oneline
+
+
+4. Stage All Changed Files
+git add .
+
+4.1 To move back to last staging but not last commit - this command takes you back to last git add .
+git restore .
+
+
+5. Commit Changes with a Message
+git commit -m "message here"
+
+
+6. Push Your Code to GitHub
+git push -u origin main
+- The '-u' sets this branch as the default so next time you can just use 'git push'.
+
+
+7. Force Push (Only When Absolutely Necessary)
+git push -f origin main
+- **Dangerous:** Overwrites the code on GitHub with your local version.
+- Use this **only** when:
+  * You've done a history rewrite (like after 'git rebase')
+  * You *really* need to override remote changes
+
+---

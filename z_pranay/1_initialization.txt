@@ -1,0 +1,26 @@
+cd C:\xampp\htdocs\
+
+git clone https://github.com/PranayAgrwl/pranay_laravel_timeline.git
+
+cd C:\xampp\htdocs\pranay_laravel_timeline\
+
+cp .env.example .env
+
+composer -v
+npm -v
+
+composer install
+npm install
+
+npm run dev
+npm run build
+
+php artisan key:generate
+
+php artisan migrate
+php artisan module:migrate
+php artisan db:seed
+
+php artisan serve
+
+URL: http://localhost:8000/
