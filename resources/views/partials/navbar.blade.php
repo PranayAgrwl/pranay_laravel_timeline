@@ -42,13 +42,22 @@
             </ul>
 
             @auth
-            <div class="ms-lg-auto d-flex">
-                <span class="navbar-text text-light me-3">
+            <div class="ms-lg-auto d-flex align-items-center gap-2">
+                <span class="navbar-text text-light me-2">
                     Welcome, {{ auth()->user()->name }}
                 </span>
-                <form action="{{ route('logout') }}" method="POST" class="d-flex">
+
+                {{-- Edit Profile - placed BEFORE Logout per spec --}}
+                <a href="{{ route('profile.edit') }}" class="btn btn-outline-light">
+                    <!-- <i class="bi bi-person-gear me-1"></i> -->
+                    Edit Profile
+                </a>
+
+                {{-- Logout uses POST so it isn't triggerable via GET (CSRF safety) --}}
+                <form action="{{ route('logout') }}" method="POST" class="d-flex m-0">
                     @csrf
                     <button type="submit" class="btn btn-outline-light">
+                        <!-- <i class="bi bi-box-arrow-right me-1"></i> -->
                         Logout
                     </button>
                 </form>

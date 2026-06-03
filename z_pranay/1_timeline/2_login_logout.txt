@@ -1,0 +1,26 @@
+[DONE] user logged in stays logged in for longer time even after i close browser and open it again unless i have logged out
+    -> added "Remember Me" checkbox on login form (Laravel's standard remember_token mechanism)
+    -> when ticked, browser keeps a long-lived cookie; closing/reopening the browser keeps you signed in
+    -> bumped SESSION_LIFETIME from 120 to 1440 (1 day) for everyday comfort even without Remember Me
+    -> clicking Logout still fully revokes: session destroyed + remember cookie + remember_token in DB
+-
+[DONE] option to edit user profile - button edit profile before logout button
+    name
+    email
+    password
+    -> route GET/PATCH /profile, ProfileController, auth/profile.blade.php
+    -> "Edit Profile" button placed in navbar immediately before Logout
+    -> requires CURRENT password to authorise any change (industry standard)
+    -> on password change, other devices are logged out (Auth::logoutOtherDevices)
+-
+[DONE] send email - on every new login
+    -> SendLoginNotificationEmail listener on Illuminate\Auth\Events\Login
+    -> LoginNotificationMail sends SYNCHRONOUSLY inside the login request
+       (no ShouldQueue, no queue worker needed, zero moving parts)
+    -> listener wraps Mail::send in try/catch -> SMTP outage NEVER blocks login,
+       failure is written to laravel.log instead
+    -> email contains: time, IP, browser, OS + "wasn't you?" safety hint
+    -> sender / reply-to pulled from .env (MAIL_FROM_*, MAIL_REPLY_TO_*)
+    -> trade-off: login response is ~1-2s slower while we talk to Disroot SMTP;
+       acceptable for a single-user timeline app, revisit if scale changes
+i have entered email app passwords in the env
