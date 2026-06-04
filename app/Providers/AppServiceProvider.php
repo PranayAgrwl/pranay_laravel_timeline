@@ -6,6 +6,7 @@ use App\Listeners\SendLoginNotificationEmail;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -26,5 +27,9 @@ class AppServiceProvider extends ServiceProvider
         // Explicit registration (vs. auto-discovery) so the wiring is easy to
         // find with a single grep across the codebase.
         Event::listen(Login::class, SendLoginNotificationEmail::class);
+        if (config('app.env') === 'production') 
+        {
+            URL::forceScheme('https');
+        }
     }
 }
