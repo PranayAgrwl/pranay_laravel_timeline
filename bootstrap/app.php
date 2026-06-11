@@ -73,6 +73,30 @@ return Application::configure(basePath: dirname(__DIR__))
                 | Request::HEADER_X_FORWARDED_PROTO
                 | Request::HEADER_X_FORWARDED_AWS_ELB,
         );
+
+        /*
+        |----------------------------------------------------------------------
+        | CSRF exemptions for the CardDAV endpoints
+        |----------------------------------------------------------------------
+        |
+        | The People-module CardDAV endpoints (`/dav/*` and the discovery URL
+        | `/.well-known/carddav`) are accessed by external clients like DAVx5
+        | on Android. Those clients authenticate with HTTP Basic on every
+        | request and have no concept of Laravel's CSRF token. We exempt
+        | them here so the VerifyCsrfToken middleware doesn't 419 their
+        | PROPFIND / REPORT / PUT calls.
+        |
+        | Security trade-off: CSRF is replaced by Basic auth + HTTPS for these
+        | paths. The Basic credentials match the web login and travel over
+        | the same TLS channel Caddy terminates. CSRF would add no security
+        | here because DAVx5 isn't a browser - no cookies, no implicit auth,
+        | no cross-site request risk.
+        */
+        $middleware->validateCsrfTokens(except: [
+            'dav',                  // matches the bare /dav/ collection root
+            'dav/*',                // matches all sub-paths under /dav/
+            '.well-known/carddav',  // CardDAV discovery URL
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

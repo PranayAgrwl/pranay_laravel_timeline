@@ -1,0 +1,306 @@
+STEP 3 DEPLOYMENT GUIDE  -  GETTING CardDAV LIVE ON THE SERVER
+==============================================================
+
+This guide walks you (Pranay) from "I have working code on my laptop"
+to "DAVx5 on my phone is syncing my contacts from the server" in your
+specific environment:
+
+    - server runs docker + portainer
+    - laravel app lives at  /docker/my_sites/pranay_timeline (on host)
+    - caddy reverse-proxies https://timeline.prana.y.deetex.in
+      to the php container
+    - static IP + port forwarding already in place
+
+
+0)  WHAT IS GETTING DEPLOYED
+----------------------------
+
+Three groups of changes ship together when you push this step:
+
+   A) NEW PHP CODE
+      - composer dependency: sabre/dav (~2 MB, pure PHP)
+      - new module files under Modules/People/app/CardDav/...
+      - 2 new routes inside Modules/People/routes/web.php
+        - GET /.well-known/carddav    (CardDAV discovery)
+        - ANY /dav/{path?}            (the DAV server itself)
+
+   B) NEW DB TABLES
+      - none new in step 3 (the people_addressbooks row was seeded
+        back in step 1). this step is code-only on the DB side.
+
+   C) OPTIONAL CADDY CONFIG TWEAKS
+      - allow larger request bodies for vCard uploads (sync writes
+        from the phone are read-only per your plan, but lookups
+        can still be a few KB)
+      - make absolutely sure the Authorization header is forwarded
+        through Caddy to the PHP container (some configs strip it)
+      these are tiny, additive, and described in section 4.
+
+
+1)  THE WORKFLOW IN ONE PICTURE
+-------------------------------
+
+    laptop (here)                            server (production)
+    ─────────────                            ───────────────────
+    1. write & commit  ──── git push ────►   2. git pull on server
+                                             3. composer install
+                                             4. php artisan migrate
+                                                (no migrations this step,
+                                                 still safe to run)
+                                             5. php artisan config:cache
+                                                       route:cache
+                                             6. (optional) update Caddyfile
+                                                + reload caddy
+                                             7. verify with curl
+                                             8. set up DAVx5 on phone
+
+
+2)  PRE-FLIGHT (DO THESE ONCE, NOT EACH DEPLOY)
+-----------------------------------------------
+
+   2.1  PUBLIC DNS
+        - timeline.prana.y.deetex.in already resolves to your static IP
+        - port 443 (HTTPS) already forwarded to the server -> caddy
+        - if either is broken, fix BEFORE attempting step 3
+
+   2.2  CADDY HAS A VALID CERT FOR THE DOMAIN
+        - test from anywhere:    curl -I https://timeline.prana.y.deetex.in/
+        - expect 200/302/401 and an `HTTP/2` line
+        - a "certificate" error here blocks everything below
+
+   2.3  YOU HAVE A WORKING WEB LOGIN
+        - log in on the production site with the SAME credentials you
+          will paste into DAVx5 (because we picked "reuse web login")
+        - if web login fails, DAVx5 will fail in the exact same way
+
+
+3)  THE ACTUAL DEPLOY COMMANDS (HOST SIDE)
+------------------------------------------
+
+   Assumes your stack root is /docker/my_sites/pranay_timeline AND
+   that root holds the Laravel codebase (this is the layout that
+   matches your mental model from chat).
+
+   3.1  SSH OR PORTAINER TERMINAL INTO THE HOST
+
+        ssh you@your.server                          # or
+        Portainer  ->  Stacks  ->  pranay_timeline   # then open "Console"
+
+   3.2  PULL THE NEW CODE
+        cd /docker/my_sites/pranay_timeline
+        git status                # should be clean before pull
+        git pull origin main      # or whatever branch you ship from
+
+   3.3  INSTALL DEPENDENCIES (THIS IS THE ONE THAT MATTERS)
+        # if your php container has composer baked in:
+        docker compose exec app composer install \
+            --no-dev --optimize-autoloader --no-interaction
+
+        # if NOT, run on host (assuming host has php+composer):
+        composer install --no-dev --optimize-autoloader --no-interaction
+
+        # this is where sabre/dav actually gets downloaded into vendor/
+
+   3.4  MIGRATIONS (no-op this step, but always run)
+        docker compose exec app php artisan migrate --force
+
+   3.5  CLEAR + REBUILD CACHES (so new routes/config are picked up)
+        docker compose exec app php artisan config:clear
+        docker compose exec app php artisan route:clear
+        docker compose exec app php artisan cache:clear
+        docker compose exec app php artisan config:cache
+        docker compose exec app php artisan route:cache
+        docker compose exec app php artisan view:cache
+
+   3.6  IF YOU USE OPCACHE OR JIT, RESTART PHP-FPM
+        docker compose restart app
+        # or                                            (if php-fpm runs
+        docker compose exec app kill -USR2 1            #  as PID 1)
+
+
+4)  CADDY CHANGES (OPTIONAL BUT RECOMMENDED)
+--------------------------------------------
+
+   Where your Caddyfile lives depends on your stack. Common patterns:
+
+        /docker/caddy/Caddyfile           (separate caddy stack)
+        /docker/my_sites/pranay_timeline/caddy/Caddyfile   (per-app)
+        baked into the caddy image        (less common)
+
+   In the block for `timeline.prana.y.deetex.in { ... }`, ensure
+   you have these two pieces (add if missing; leave if present):
+
+   ----------------------------------------------------------------
+   timeline.prana.y.deetex.in {
+       # ...your existing TLS, log, headers, etc...
+
+       # let vCard payloads up to a few MB through (default 10MB is
+       # already generous - just being explicit)
+       request_body {
+           max_size 10MB
+       }
+
+       reverse_proxy app:80 {                # or whatever the
+                                             # internal hostname is
+           # CRITICAL: Authorization header must reach the PHP
+           # container so DAVx5's Basic auth makes it through
+           header_up Authorization {http.request.header.Authorization}
+       }
+   }
+   ----------------------------------------------------------------
+
+   Then reload caddy WITHOUT restarting it (zero-downtime):
+
+        docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+   If your caddy container path differs, swap the `--config` value.
+
+
+5)  VERIFICATION (RUN FROM YOUR LAPTOP, NOT THE SERVER)
+-------------------------------------------------------
+
+   Replace EMAIL + PASSWORD below with your actual web-login creds.
+   `--basic` makes curl send HTTP Basic auth; -u takes user:pass.
+
+   5.1  WELL-KNOWN REDIRECT
+        curl -I https://timeline.prana.y.deetex.in/.well-known/carddav
+
+        EXPECT:  HTTP/2 301
+                 location: /dav/
+
+   5.2  DAV ROOT WITH AUTH
+        curl -i -u 'EMAIL:PASSWORD' \
+            https://timeline.prana.y.deetex.in/dav/
+
+        EXPECT:  HTTP/2 207   (DAV multi-status)
+                 some XML body listing principals
+
+   5.3  LIST YOUR ADDRESS BOOKS
+        curl -i -u 'EMAIL:PASSWORD' \
+            -X PROPFIND \
+            -H 'Depth: 1' \
+            https://timeline.prana.y.deetex.in/dav/addressbooks/
+
+        EXPECT:  XML containing  "my-contacts"  and its display name
+
+   5.4  FETCH ALL VCARDS IN THE ADDRESS BOOK
+        curl -i -u 'EMAIL:PASSWORD' \
+            -X REPORT \
+            -H 'Content-Type: application/xml' \
+            -H 'Depth: 1' \
+            --data-raw '<?xml version="1.0"?>
+              <c:addressbook-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:carddav">
+                <d:prop><d:getetag/><c:address-data/></d:prop>
+              </c:addressbook-query>' \
+            https://timeline.prana.y.deetex.in/dav/addressbooks/EMAIL/my-contacts/
+
+        EXPECT:  XML body with 2 BEGIN:VCARD ... END:VCARD blocks
+                 (Test One, Test Two)
+
+   If 5.1-5.4 all pass, the server side is 100% ready for the phone.
+
+
+6)  PHONE SETUP (DAVx5 ON ANDROID)
+----------------------------------
+
+   6.1  Install DAVx5 from F-Droid (recommended) or Play Store.
+
+   6.2  Open DAVx5 -> tap "+" (bottom-right) -> "Login with URL and
+        username".
+
+   6.3  Fill in:
+            Base URL:  https://timeline.prana.y.deetex.in/dav/
+            Username:  your email (the web-login one)
+            Password:  your web-login password
+
+   6.4  Tap "Login". DAVx5 will discover the address book and offer
+        to create an account.
+
+   6.5  Pick an account name (e.g. "Pranay Personal CRM"), tap
+        "Create account".
+
+   6.6  On the next screen pick "CardDAV" tab -> tick "My Contacts"
+        -> tap the sync icon (circular arrow, top-right).
+
+   6.7  Wait 5-15 seconds. Open the stock "Contacts" app on Android.
+        Filter by account "Pranay Personal CRM" -> Test One and
+        Test Two should appear.
+
+   ANY FAILURE HERE: rerun the curl checks from section 5 first.
+   If those still pass, the issue is on the phone (network, DAVx5
+   permissions, Android contact sync setting).
+
+
+7)  ROLLBACK (IF SOMETHING BREAKS THE WEB APP)
+----------------------------------------------
+
+   7.1  Get the previous git SHA:
+            cd /docker/my_sites/pranay_timeline
+            git log -2 --oneline       # note the OLDER hash
+
+   7.2  Roll the code back:
+            git reset --hard <older_hash>
+
+   7.3  Reinstall deps (sabre/dav will get removed from vendor/):
+            docker compose exec app composer install \
+                --no-dev --optimize-autoloader --no-interaction
+
+   7.4  Rebuild caches (or clear them; safer to clear):
+            docker compose exec app php artisan optimize:clear
+
+   7.5  Restart app container:
+            docker compose restart app
+
+   7.6  If you changed the Caddyfile in section 4, revert that too
+        and `caddy reload`.
+
+   Step 3 ships NO database migrations, so nothing to undo on the
+   DB side. Rollback is purely code.
+
+
+8)  TROUBLESHOOTING CHEAT SHEET
+-------------------------------
+
+   SYMPTOM                      LIKELY CAUSE / FIX
+   -----------------------      ---------------------------------
+   curl 5.1 -> 404              new routes not loaded - rerun
+                                `route:clear && route:cache`
+
+   curl 5.2 -> 401              wrong email/password OR
+                                Authorization header stripped by
+                                Caddy (see section 4)
+
+   curl 5.2 -> 500              check `storage/logs/laravel.log`
+                                inside the container
+
+   curl 5.2 -> works, 5.3 -> 401
+                                Auth backend is rejecting the user
+                                from inside sabre/dav even though
+                                Laravel accepts - check the
+                                AuthBackend.php logic
+
+   DAVx5 -> "no address books"  the principal URL is wrong - check
+                                that step 5.4 returns vCards
+
+   DAVx5 -> "untrusted cert"    Caddy hasn't issued a real cert yet
+                                (usually a DNS or rate-limit issue)
+
+   Contacts not appearing on phone after sync finishes
+                                Android Settings -> Accounts ->
+                                Pranay CRM -> Account Sync ->
+                                ensure "Contacts" toggle is on
+
+
+9)  WHEN STEP 3 IS DONE
+-----------------------
+
+   The deliverable for step 3 is:
+
+      [ ] sabre/dav installed and visible in composer.json
+      [ ] all curl checks in section 5 pass on production
+      [ ] DAVx5 connected and showing "My Contacts"
+      [ ] both test contacts appear in your phone's Contacts app
+      [ ] this txt file updated with the actual values you used
+          for any placeholders above (or deleted if redundant)
+
+   Then move on to step 4 (web UI for creating/editing contacts).

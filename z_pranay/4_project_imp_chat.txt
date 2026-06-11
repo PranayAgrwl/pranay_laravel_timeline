@@ -1,5 +1,5 @@
 take your time
-create human readable and module wise comment 
+create human readable and module wise comments
 use complete context
 industry standard and robust
 feel free to ask me any question and any query whatsoever
@@ -15,3 +15,53 @@ tools
     jquery
     bootstrap
     alpine js
+-
+tree-style foldering and compartmentalising  (apply this EVERYWHERE)
+
+    each domain area lives in its own folder, not flat soup. think
+    in terms of small, single-purpose folders that read like a table
+    of contents.
+
+    inside a module (Modules/<Name>/):
+        app/
+            Http/Controllers/        <- one controller per area, thin
+            Livewire/                <- one sub-folder per area
+                <Area>/
+                    Index.php
+                    ... more if needed
+            Models/                  <- domain entities
+                <Entity>.php
+                Labels/              <- lookup-only models in their own subfolder
+                    <Lookup>.php
+            Providers/
+            Listeners/               <- model events (auto-mirror, etc.)
+            Mail/                    <- if the area sends email
+        database/
+            migrations/              <- dependency-ordered, one table per file
+            seeders/                 <- per-module seed (only if explicitly wanted)
+        resources/
+            views/
+                components/layouts/  <- module base layout
+                partials/            <- shared partial includes (navbar, etc.)
+                <area>/              <- one folder per area
+                livewire/<area>/     <- partials for the area's livewire
+        routes/
+            web.php / api.php
+
+    each area folder is self-contained; no cross-area peeking.
+    if a thing is shared between areas, it belongs at the module root,
+    NOT inside one of the areas.
+
+    naming:
+        - migration file names dependency-ordered via timestamp
+        - controllers + models singular nouns; tables plural-prefixed
+        - lookup tables grouped under Models/Labels/ in the model layer
+-
+notes / explainers / logic-records
+    feel free to create / read / update / delete .txt files under z_pranay/
+    whenever it helps explain something, capture a design decision, or
+    park reasoning for future you. typical patterns:
+        z_pranay/<module>/N_<topic>.txt     for module-specific notes
+        z_pranay/<module>/explainers/...    for longer-form explanations
+    after a temporary explainer has served its purpose, delete it (keep
+    the folder tidy). permanent design-decision logs stay.

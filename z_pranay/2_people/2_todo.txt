@@ -1,0 +1,14 @@
+we want to create a contact manager x family tree -> personal CRM
+
+i will used card dav which i will use in my non rooted android phone via davx5 pull only and create/update/delete via web interface only
+
+STEP 1
+create tables (with prefix people_ in all tables)
+STEP 2
+create 2 simple contacts
+STEP 3
+create sync logic to test connection with my non rooted android phone with davx5
+STEP 4
+create web interface with the complete web like structure to input new contacts and everything else as well
+STEP 5
+dance for great success

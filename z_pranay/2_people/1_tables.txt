@@ -1,0 +1,317 @@
+PEOPLE MODULE  -  TABLES BIBLE  (FINAL)
+=======================================
+
+Personal CRM + family-tree hybrid.
+Module : People        Table prefix : people_
+Single-user (Pranay). All tables: per-user owned via audit columns.
+Stack  : Laravel 12 + nWidart Modules + Livewire + Bootstrap + Alpine + jQuery.
+
+
+CONVENTIONS APPLIED TO EVERY TABLE
+----------------------------------
+- PK: table-specific (contact_id, phone_id, group_id, etc.) not generic `id`.
+- 6 audit columns on every table:
+      created_at, created_by, updated_at, updated_by, deleted_at, deleted_by
+- Soft-delete on every table (including the 8 lookups) for uniform history.
+- All FKs ON DELETE RESTRICT (soft-delete is the proper removal path).
+- Indexes auto-applied on every FK column.
+- Lookup tables (the 8 marked [LOOKUP]) start EMPTY; you populate via UI/SQL.
+- The system table `people_addressbooks` is inserted with one default row
+  ("My Contacts") inside its migration so CardDAV (Step 3) has a target.
+
+
+==========================================================
+SYSTEM / SYNC
+==========================================================
+
+people_addressbooks                                    [SYSTEM - 1 row hardcoded]
+    addressbook_id        PK
+    uri                   VARCHAR(255) UNIQUE
+    displayname           VARCHAR(150)
+    description           TEXT NULLABLE
+    sync_token            UNSIGNED BIGINT DEFAULT 1   (auto-bumped on every
+                                                       contact insert/update/
+                                                       delete; sabre/dav uses
+                                                       this for incremental
+                                                       sync to DAVx5)
+    notes                 TEXT NULLABLE
+    + audit columns
+    + soft-deletes
+
+    -> migration inserts: {uri:'my-contacts', displayname:'My Contacts', sync_token:1}
+
+
+==========================================================
+IDENTITY
+==========================================================
+
+people_contacts
+    contact_id            PK
+    uuid                  CHAR(36) UNIQUE NOT NULL     (auto via HasUuids trait;
+                                                        required for CardDAV
+                                                        vCard UID stability)
+    first_name            VARCHAR(100)
+    middle_name           VARCHAR(100) NULLABLE
+    last_name             VARCHAR(100) NULLABLE
+    gender                VARCHAR(20) NULLABLE         (free-form; common values:
+                                                        Male/Female/Other/-)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_nick_names
+    nick_name_id          PK
+    contact_id            FK -> people_contacts (RESTRICT)
+    nick_name             VARCHAR(100)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+
+==========================================================
+RELATIONSHIPS
+==========================================================
+
+people_relation_types                                                   [LOOKUP]
+    relation_type_id      PK
+    name                  VARCHAR(50)                  (display label; you
+                                                        populate: standalone,
+                                                        friend, colleague,
+                                                        parent, child,
+                                                        service, spouse)
+    mirror                TINYINT(1) DEFAULT 0         (0=no, 1=yes -> auto-create
+                                                        the inverse on save)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+    AUTO-MIRROR RULE (hardcoded in the Relation model's saved event):
+        when mirror=1 and name='parent'  -> create inverse with name='child'
+        when mirror=1 and name='child'   -> create inverse with name='parent'
+        when mirror=1 and name='spouse'  -> create inverse with name='spouse'
+        siblings are NOT stored - derived via shared parent in queries.
+        WARNING: renaming the above rows in the UI breaks mirror logic.
+
+people_relations
+    relation_id           PK
+    contact_from_id       FK -> people_contacts (RESTRICT)
+    contact_to_id         FK -> people_contacts (RESTRICT)
+    relation_type_id      FK -> people_relation_types (RESTRICT)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+    UNIQUE(contact_from_id, contact_to_id, relation_type_id)
+    CHECK(contact_from_id <> contact_to_id)                (no self-relations)
+
+
+==========================================================
+GROUPS (hierarchical)
+==========================================================
+
+people_group_names
+    group_id              PK
+    name                  VARCHAR(100)
+    purpose               VARCHAR(255) NULLABLE        (free-text descriptor:
+                                                        "college friends core",
+                                                        "home neighbours", etc.)
+    parent_group_id       FK -> people_group_names (RESTRICT) NULLABLE
+                                                       (self-reference; null
+                                                        for root groups)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_group_links
+    group_link_id         PK
+    group_id              FK -> people_group_names (RESTRICT)
+    contact_id            FK -> people_contacts (RESTRICT)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+    UNIQUE(group_id, contact_id)
+
+
+==========================================================
+ADDRESSES & LOCATIONS
+==========================================================
+
+people_locations
+    location_id           PK
+    name                  VARCHAR(150) NULLABLE
+    street                VARCHAR(255) NULLABLE
+    area                  VARCHAR(150) NULLABLE
+    near                  VARCHAR(150) NULLABLE        (landmark hint)
+    pin_code              VARCHAR(15)  NULLABLE        (varchar handles intl)
+    city                  VARCHAR(100) NULLABLE
+    province              VARCHAR(100) NULLABLE        (typo fixed: provinence)
+    country               VARCHAR(100) NULLABLE
+    lat                   DECIMAL(10,7) NULLABLE
+    lon                   DECIMAL(10,7) NULLABLE
+    g_maps_link           TEXT NULLABLE
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_address
+    address_id            PK
+    loc_id                FK -> people_locations (RESTRICT)
+    name                  VARCHAR(150) NULLABLE        (e.g. "Childhood home")
+    floor                 VARCHAR(20)  NULLABLE
+    type                  TINYINT(1)                   (0=residence,
+                                                        1=work,
+                                                        2=other)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_address_link
+    address_link_id       PK
+    address_id            FK -> people_address (RESTRICT)
+    contact_id            FK -> people_contacts (RESTRICT)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+    UNIQUE(address_id, contact_id)
+
+
+==========================================================
+DOCUMENTS
+==========================================================
+
+people_document_types                                                   [LOOKUP]
+    document_type_id      PK
+    name                  VARCHAR(100)                 (PAN, Aadhaar, Passport,
+                                                        DL, etc. - you populate)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_documents
+    document_id           PK
+    document_type_id      FK -> people_document_types (RESTRICT)
+    contact_id            FK -> people_contacts (RESTRICT)
+    file_name             VARCHAR(255)                 (original filename)
+    file_address          VARCHAR(500)                 (storage path - format
+                                                        not locked yet, decide
+                                                        at upload time)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+
+==========================================================
+PHONES
+==========================================================
+
+people_label_phone                                                      [LOOKUP]
+    phone_label_id        PK
+    name                  VARCHAR(50)                  (Mobile, Home, Work, Fax)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_sim_types                                                        [LOOKUP]
+    sim_id                PK
+    sim_name              VARCHAR(50)                  (your SIMs: Work, Personal)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_country_codes                                                    [LOOKUP]
+    country_id            PK
+    country_code          VARCHAR(7)                   (e.g. "+91", "+1-242")
+    name                  VARCHAR(100)                 (India, USA, ...)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_phones
+    phone_id              PK
+    contact_id            FK -> people_contacts (RESTRICT)
+    phone_label_id        FK -> people_label_phone (RESTRICT)
+    country_id            FK -> people_country_codes (RESTRICT)
+    phone                 VARCHAR(20)                  (leading-zero safe,
+                                                        accepts spaces/hyphens)
+    sim_id                FK -> people_sim_types (RESTRICT) NULLABLE
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+    UNIQUE(contact_id, phone, country_id)
+
+
+==========================================================
+DATES & REMINDERS
+==========================================================
+
+people_label_dates                                                      [LOOKUP]
+    label_date_id         PK
+    name                  VARCHAR(50)                  (Birthday, Anniversary)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_label_reminders                                                  [LOOKUP]
+    reminder_id           PK
+    reminder_name         VARCHAR(100)                 (None, Cake Cutting,
+                                                        Gift Getting)
+    hours_prior           UNSIGNED INT                 (0, 4, 168, ...)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_dates
+    date_id               PK
+    contact_id            FK -> people_contacts (RESTRICT)
+    label_date_id         FK -> people_label_dates (RESTRICT)
+    date                  DATE
+    time                  TIME NULLABLE
+    reminder_id           FK -> people_label_reminders (RESTRICT) NULLABLE
+    recurrence            TINYINT(1) DEFAULT 0         (0=one-shot,
+                                                        1=annual recurrence)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+
+==========================================================
+WORK
+==========================================================
+
+people_work
+    work_id               PK
+    contact_id            FK -> people_contacts (RESTRICT)
+    address_id            FK -> people_address (RESTRICT) NULLABLE
+    started_on            DATE NULLABLE
+    ended_on              DATE NULLABLE                (null = currently working)
+    post                  VARCHAR(150)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+
+==========================================================
+OTHER SOCIALS
+==========================================================
+
+people_label_other_socials                                              [LOOKUP]
+    other_social_label_id PK
+    name                  VARCHAR(50)                  (Email, Instagram,
+                                                        Twitter, WhatsApp...)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+people_other_socials
+    other_social_id       PK
+    other_social_label_id FK -> people_label_other_socials (RESTRICT)
+    link                  TEXT                         (URL or handle)
+    contact_id            FK -> people_contacts (RESTRICT)
+    notes                 TEXT NULLABLE
+    + audit + soft-deletes
+
+
+==========================================================
+MIGRATION DEPENDENCY ORDER (for the timestamped filenames)
+==========================================================
+1.  people_addressbooks                 (no FKs)
+2.  people_contacts                     (no FKs)
+3.  people_group_names                  (self-FK)
+4.  people_relation_types               (no FKs)
+5.  people_locations                    (no FKs)
+6.  people_document_types               (no FKs)
+7.  people_label_phone                  (no FKs)
+8.  people_sim_types                    (no FKs)
+9.  people_country_codes                (no FKs)
+10. people_label_dates                  (no FKs)
+11. people_label_reminders              (no FKs)
+12. people_label_other_socials          (no FKs)
+13. people_nick_names                   (-> contacts)
+14. people_group_links                  (-> group_names + contacts)
+15. people_relations                    (-> contacts + relation_types)
+16. people_address                      (-> locations)
+17. people_address_link                 (-> address + contacts)
+18. people_documents                    (-> document_types + contacts)
+19. people_phones                       (-> contacts + label_phone + country_codes + sim_types)
+20. people_dates                        (-> contacts + label_dates + label_reminders)
+21. people_work                         (-> contacts + address)
+22. people_other_socials                (-> label_other_socials + contacts)
